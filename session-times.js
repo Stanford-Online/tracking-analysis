@@ -9,7 +9,12 @@
 //
 
 // settings
-var log_collection_name = "tracking_sample";
+//
+// by default run on "sample", small demo set of logs, change to
+// larger set here
+
+var log_collection_name = "tracking";          /* big */
+var log_collection_name = "tracking_sample";   /* small */
 var result_collection_name = "session_times";
 
 // create index 
