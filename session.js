@@ -13,7 +13,7 @@
 
 // var log_collection_name = "tracking_sample";   /* small */
 var log_collection_name = "tracking";          /* big */
-var session_result_name = "session";
+var session_collection_name = "session";
 
 // create index 
 "INFO: creating index on \"" + log_collection_name + "\"";
@@ -22,7 +22,7 @@ log_collection.ensureIndex({session:1,time:1}, {background:1});
 
 // map/reduce on tracking logs
 "INFO: map/reduce on \"" + log_collection_name + "\", " +
-    "results in \"" + result_collection_name + "\"";
+    "results in \"" + session_collection_name + "\"";
 var map_valid_dates = function() {
     if (this.session && this.time) {
         emit(this.session, {events: [{date:new Date(this.time)}], 
@@ -62,15 +62,15 @@ var finalize_get_duration = function(session, sorted) {
 
 log_collection.mapReduce(map_valid_dates, 
                          reduce_sessions,
-                         {out: result_collection_name,
+                         {out: session_collection_name,
                           sort: {session:1, time:1},  /* use index */
                           finalize: finalize_get_duration
                          });
 
 
 // Totalling up
-"INFO: aggregating into \"" + session_result_name + "\"" ;
-var session_result = db.getCollection(session_result_name);
+"INFO: aggregating into \"" + session_collection_name + "\"" ;
+var session_result = db.getCollection(session_collection_name);
 session_result.aggregate([
                {$group: {_id: "total", 
                          session_secs: {$sum:"$value.session_sec"}}
