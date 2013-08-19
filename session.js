@@ -13,9 +13,9 @@
 // by default run on "sample", small demo set of logs, change to
 // larger set here
 
-var log_collection_name = "tracking";          /* big */
 var log_collection_name = "tracking_sample";   /* small */
-var result_collection_name = "session_times";
+var log_collection_name = "tracking";          /* big */
+var session_result_name = "session";
 
 // create index 
 "INFO: creating index on \"" + log_collection_name + "\"";
@@ -27,7 +27,8 @@ log_collection.ensureIndex({session:1,time:1}, {background:1});
     "results in \"" + result_collection_name + "\"";
 var map_valid_dates = function() {
     if (this.session && this.time) {
-        emit(this.session, {events: [{date:new Date(this.time)}] } );
+        emit(this.session, {events: [{date:new Date(this.time)}], 
+                            username: this.username} );
     }
 };
 
@@ -37,7 +38,8 @@ var reduce_sessions = function(session, events_list) {
         combined = combined.concat(events_list[i].events);
     }
     var date_ascending = function(a,b) { return a.date-b.date };
-    return {events: combined.sort(date_ascending)};
+    return {events: combined.sort(date_ascending),
+            username: events_list[0].username};
 };
 
 var finalize_get_duration = function(session, sorted) {
@@ -46,13 +48,14 @@ var finalize_get_duration = function(session, sorted) {
     var gap_sec = 0;
     for (var i=1; i < num_events; i++) {
         extent = (sorted.events[i].date - sorted.events[i-1].date)/1000;
-        if (extent < 3600*1) {    /* >1 hour btw events doesnt count */
+        if (extent < 3600) {    /* >1 hour btw events doesnt count */
             session_sec += extent;
         } else {
             gap_sec += extent;
         }
     }
-    return {first:sorted.events[0].date,
+    return {username:sorted.events[0].username,
+            first:sorted.events[0].date,
             last:sorted.events[num_events-1].date,
             events:num_events,
             session_sec:session_sec, 
@@ -65,16 +68,17 @@ log_collection.mapReduce(map_valid_dates,
                           sort: {session:1, time:1},  /* use index */
                           finalize: finalize_get_duration
                          });
-var result_collection = db.getCollection(result_collection_name);
 
 
-// Total Time
-"INFO: aggregate total time";
-result_collection.aggregate([
+// Totalling up
+"INFO: aggregating into \"" + session_result_name + "\"" ;
+var session_result = db.getCollection(session_result_name);
+session_result.aggregate([
                {$group: {_id: "total", 
                          session_secs: {$sum:"$value.session_sec"}}
                }
 ]);
+
 
 // Times Per Day 
 // doesn't work yet -- have to aggregate by y/m/d first
