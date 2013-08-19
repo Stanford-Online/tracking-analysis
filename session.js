@@ -1,4 +1,4 @@
-// session-times.js 
+// session.js 
 //
 // Aggregate set of edX tracking logs by session.  Creates a collection
 // with basic per-session statistics, and then sums the session
@@ -10,10 +10,8 @@
 
 // settings
 //
-// by default run on "sample", small demo set of logs, change to
-// larger set here
 
-var log_collection_name = "tracking_sample";   /* small */
+// var log_collection_name = "tracking_sample";   /* small */
 var log_collection_name = "tracking";          /* big */
 var session_result_name = "session";
 
