@@ -9,7 +9,6 @@
 //
 
 // settings
-//
 
 // var log_collection_name = "tracking_sample";   /* small */
 var log_collection_name = "tracking";          /* big */
@@ -76,16 +75,5 @@ session_result.aggregate([
                          session_secs: {$sum:"$value.session_sec"}}
                }
 ]);
-
-
-// Times Per Day 
-// doesn't work yet -- have to aggregate by y/m/d first
-
-//result_collection.ensureIndex({"value.first":1});
-//result_collection.aggregate([
-//               {$group: {_id: "$value.first.toDateString()", 
-//                         session_total: {$sum:"$value.session_sec"}}},
-//               { $sort: {_id: 1}}
-//]);
 
 
