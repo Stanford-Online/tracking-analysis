@@ -50,7 +50,7 @@ function finalize_get_duration(key, session_events) {
     var session_sec = 0;
     for (var i=1; i < num_events; i++) {
         extent = (session_events.events[i] - session_events.events[i-1])/1000;
-        if (extent < 3600) {    /* >1 hour btw events doesnt count */
+        if (extent <= 1200) {    /* >20 min btw events doesnt count */
             session_sec += extent;
         }
     }
