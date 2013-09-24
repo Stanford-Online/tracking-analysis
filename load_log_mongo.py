@@ -65,11 +65,14 @@ def insert_imported(imp, filepath, error=0, good=0):
 # MAIN
 
 if len(sys.argv) < 4:
-    sys.stderr.write("usage: %s db coll f1 [f2] [f3...]\n\n" % sys.argv[0])
-    sys.stderr.write("For one or more files containing edx tracking logs, insert into the\n")
-    sys.stderr.write("collection given. If files end in .gz they are decompressed on the fly.\n")
-    sys.stderr.write("Files successfully loaded are tracked in collection_incremental, and\n")
-    sys.stderr.write("the file is already there, it is skipped (for incremental loads).\n")
+    usage_message = """usage: %s db coll f1 [f2] [f3...]
+
+For one or more files containing edx tracking logs, insert into the
+collection given. Files ending .gz they are decompressed on the fly.
+Files successfully loaded are tracked in coll_incremental. If already
+loaded, skip.
+"""
+    sys.stderr.write(usage_message % sys.argv[0])
     sys.exit(1)
 
 db_name = sys.argv[1]
