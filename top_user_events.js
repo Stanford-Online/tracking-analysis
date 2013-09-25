@@ -37,14 +37,16 @@ db.tracking.ensureIndex({'course_id':1}, {background:true})
 // "INFO: Ensure index on \"tracking.username\"";
 // db.tracking.ensureIndex({'username':1}, {background:true})
 
-"INFO: Events done by the top " + topN + " users. Excludes specific page views.";
+// add this to exclude page views
+//      {$match: {_id: {$not: /^\/courses\/.*$/}}},
+
+"INFO: Events done by the top " + topN + " users."
 var activities = db.tracking.aggregate([
         {$match: {course_id: course_id}}, 
         {$match: {username: {$in: top_names}}},
         {$group: {_id: '$event_type',
                   count: {$sum:1}} },
-        {$match: {count: {$gte: 10}}},
-        {$match: {_id: {$not: /^\/courses\/.*$/}}},
+        {$match: {count: {$gte: 100}}},
         {$sort:  {count: -1}}
 ]);
 
