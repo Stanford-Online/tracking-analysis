@@ -11,16 +11,20 @@ usage: ./load_log_mongo.py DB COLL f1 f2
 Supports multiple file names, globbed file names, and gzipped files.
 '''
 
-from pymongo import Connection
+import pymongo
 import json
 import glob
 import sys
 import gzip
 import datetime
 
+ERRORFILE_SUFFIX = "-errors"
+
 def get_course_id(event):
     """
-    get course id from page url field of an event
+    Try to harvest course_id from various parts of an event.  Assumes that
+    the "event" has already been parsed into a structure, not a json string.
+    The course_id should be of the format A/B/C and cannot contain dots.
     """
     course_id = None
     if event['event_source'] == 'server':
@@ -35,7 +39,8 @@ def get_course_id(event):
         a = s.split('/')
         if 'courses' in a:
             i = a.index('courses')
-            course_id = "/".join(map(str, a[i+1:i+4]))
+            if (len(a) >= i+4):
+                course_id = "/".join(a[i+1:i+4]).encode('utf-8').replace('.','')
     return course_id
 
 def canonical_name(filepath):
@@ -47,20 +52,6 @@ def canonical_name(filepath):
     if len(fname) > 3 and fname[-3:] == ".gz":
         fname = fname[:-3]
     return fname
-
-def insert_imported(imp, filepath, error=0, good=0):
-    """
-    File named filepath was imported, so add it to the "imported" collection
-    """
-    rec = {}
-    rec['_id'] = canonical_name(filepath)
-    rec['date'] = datetime.datetime.utcnow()
-    rec['error'] = error
-    rec['good'] = good
-    try:
-        result = imp.update({'_id': rec['_id']}, rec, upsert=True, safe=True)
-    except DuplicateKeyError:
-        print ("File already imported: %s", fname)
 
 # MAIN
 
@@ -79,10 +70,10 @@ db_name = sys.argv[1]
 collection_name = sys.argv[2]
 
 # Get database connection and collections
-connection = Connection('localhost', 27017)
+connection = pymongo.Connection('localhost', 27017)
 db = connection[db_name]
-events = db[collection_name]
-imp = db[collection_name+"_imported"]
+events_coll = db[collection_name]
+imported_coll = db[collection_name+"_imported"]
 
 total_error = 0
 total_success = 0
@@ -93,47 +84,106 @@ for i in sys.argv[3::]:     # all remaining arguments are lists of files to proc
     for j in glob.glob(i):
         files.append(j)
 
+skipped = 0;
+first_skipped = None
+last_skipped = None
 for logfile_path in sorted(files):
-    # if this file has already been imported, skip
-    if imp.find({'_id':canonical_name(logfile_path)}).count():
-        print "skipping", logfile_path
+    # if this file has already been imported, or an error file, skip
+    logfile_path_canonical = canonical_name(logfile_path)
+    if imported_coll.find({'_id':logfile_path_canonical}).count() or \
+            logfile_path_canonical.endswith(ERRORFILE_SUFFIX):
+        if not first_skipped:
+            first_skipped = logfile_path_canonical
+        last_skipped = logfile_path_canonical
+        skipped += 1
         continue
 
+    if skipped > 0:
+        print "skipped %d files, %s ... %s" % (skipped, first_skipped, last_skipped)
+        skipped = 0
+        first_skipped = None
+        last_skipped = None
     print "loading", logfile_path
+
     if logfile_path[-3:].lower() == ".gz":
         logfile = gzip.open(logfile_path)
+        event_source = logfile_path[0:-3]
+        errorfile = open(logfile_path[0:-3] + ERRORFILE_SUFFIX, "w")
     else:
         logfile = open(logfile_path)
+        event_source = logfile_path
+        errorfile = open(logfile_path + ERRORFILE_SUFFIX, "w")
 
-    this_error = 0
-    this_success = 0
-    for event in logfile:
+    try:
+        events_coll.remove({"load_file":logfile_path_canonical})
+    except Exception as e:
+        print "cannot remove prior records (%s), %s" % (logfile_path_canonical, e)
+        pass
+
+    imp = {}
+    imp['_id'] = logfile_path_canonical
+    imp['date'] = datetime.datetime.utcnow()
+    imp['error'] = 0
+    imp['good'] = 0
+    imp['courses'] = {}
+    for record_raw in logfile:
         try:
-            record = json.loads(event)
-            for attribute, value in record.iteritems():
-                if (attribute == 'event' and value and not isinstance(value, dict)):
-                    # hack to load the record when it is encoded as a string
-                    record["event"] = json.loads(value)         
-            course_id = get_course_id(record)
-            if course_id:
-                record['course_id'] = course_id
-            res = events.insert(record)
+            record = json.loads(record_raw)
+        except ValueError:
+            imp['error'] += 1
+            sys.stdout.write("p")
+            errorfile.write("PARSE: " + record_raw)
+            continue
+
+        # Hack: the record when it is encoded as a string.  It's OK if
+        # parsing fails, then just stick with existing string.
+        if 'event' in record and not isinstance(record['event'], dict):
+            try:
+                event_dict = json.loads(record['event'])
+                record['event'] = event_dict
+            except ValueError:
+                pass
+        course_id = get_course_id(record)
+        if course_id:
+            record['course_id'] = course_id
+            if course_id not in imp['courses']:
+                imp['courses'][course_id] = 1
+            else:
+                imp['courses'][course_id] += 1
+        record['load_date'] = datetime.datetime.utcnow()
+        record['load_file'] = canonical_name(event_source)
+        try:
+            res = events_coll.insert(record)
+        except pymongo.errors.InvalidDocument as e:
+            errorfile.write("INVALID_DOC: " + record_raw)
+            sys.stdout.write("i")
+            imp['error'] += 1
+            continue
         except Exception as e:
-            # TODO: handle different types of exceptions
-            this_error += 1
-        else:
-            this_success += 1
+            errorfile.write("ERROR: " + record_raw)
+            sys.stdout.write("x")
+            imp['error'] += 1
+            continue
 
-        if (this_error + this_success) % 500000 == 0:
-            sys.stdout.write("\n")
-        elif (this_error + this_success) % 10000 == 0:
+        imp['good'] += 1
+        if (imp['error'] + imp['good']) % 10000 == 0:
             sys.stdout.write(".")
+        if (imp['error'] + imp['good']) % 500000 == 0:
+            sys.stdout.write("\n")
 
-    insert_imported(imp, logfile_path, error=this_error, good=this_success)
-    total_error += this_error
-    total_success += this_success
+    # If we've inserted anything from this file, track in "inserted" coll
+    if imp['good'] > 0:
+        try:
+            result = imported_coll.update({'_id': imp['_id']}, imp, 
+                    upsert=True, safe=True)
+        except pymongo.errors.DuplicateKeyError:
+            print ("File already imported: %s", fname)
+
+    total_error += imp['error']
+    total_success += imp['good']
     sys.stdout.write("\n")
 
-print "total events read:     %d" % (total_error + total_success)
-print "inserted events:       %d" % total_success
-print "corrupt events:        %d" % total_error
+print "Total events read:  ", (total_error + total_success)
+print "Inserted events:    ", total_success
+print "Not loaded:         ", total_error
+
