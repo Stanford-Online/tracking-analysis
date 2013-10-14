@@ -1,20 +1,29 @@
 #!/usr/bin/env python
 
+import sys
 import yaml
 import pymongo
 from bson import json_util
 import datetime
-import csv
-import json
 import dateutil.parser
-from xlwt import *
 from collections import OrderedDict
 
+import csv
+import json
+from xlwt import *
+
+if len(sys.argv) <> 2:
+    sys.stderr.write("usage: %s dbname\n" % sys.argv[0])
+    sys.exit(1)
+dbname = sys.argv[1]
+
+sys.stderr.write("Connectng to mongodb: localhost:27017\n")
+conn = pymongo.Connection("localhost", 27017)
+db = conn[dbname]
+
+sys.stderr.write("Configuration file: classes.yml\n")
 courses_file = open("classes.yml", "r")
 courses = yaml.load(courses_file)
-
-conn = pymongo.Connection("localhost", 27017)
-db = conn["edxtest"]
 
 
 # Writer Classes
@@ -26,8 +35,12 @@ class Writer:
         self.row_backends = []
         self.final_backends = []
 
+        basename = course + "-" + dataname 
+        sys.stderr.write("Writing " + basename + ": ")
+
         if 'csv' in self.formats:
-            self.csv_outfile = open(course + "-" + dataname + ".csv", "wb")
+            sys.stderr.write("csv ")
+            self.csv_outfile = open(basename + ".csv", "wb")
             self.csv_writer = csv.DictWriter(self.csv_outfile, self.fieldnames.keys(), 
                     dialect='excel', extrasaction='ignore')
 
@@ -40,7 +53,8 @@ class Writer:
             self.row_backends.append(csv_row_backend)
 
         if 'json' in self.formats:
-            self.json_outfile = open(course + "-" + dataname + ".json", "wb")
+            sys.stderr.write("json ")
+            self.json_outfile = open(basename + ".json", "wb")
 
             def json_row_backend(data):
                 json.dump(data, self.json_outfile, default=json_util.default)
@@ -48,6 +62,7 @@ class Writer:
             self.row_backends.append(json_row_backend)
 
         if 'xls' in self.formats:
+            sys.stderr.write("xls ")
             self.xls_workbook = Workbook()
             self.xls_worksheet = self.xls_workbook.add_sheet(dataname)
             self.row = 0
@@ -76,8 +91,10 @@ class Writer:
             self.row_backends.append(xls_row_backend)
 
             def xls_final():
-                self.xls_workbook.save(course + "-" + dataname + ".xls")
+                self.xls_workbook.save(basename + ".xls")
             self.final_backends.append(xls_final)
+
+        sys.stderr.write("\n")
 
     def writeheader(self):
         for back in self.header_backends:
