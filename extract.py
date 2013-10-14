@@ -66,6 +66,8 @@ class Writer:
             self.xls_workbook = Workbook()
             self.xls_worksheet = self.xls_workbook.add_sheet(dataname)
             self.row = 0
+            self.datestyle = XFStyle()
+            self.datestyle.num_format_str = "M/D/YY h:mm"
 
             def xls_header_backend():
                 c = 0
@@ -82,7 +84,10 @@ class Writer:
                         celldata = data[field]
                         if conversion_func is not None:
                             celldata = conversion_func(celldata)
-                        self.xls_worksheet.write(self.row, c, label=celldata)
+                        style = Style.default_style
+                        if isinstance(celldata, datetime.datetime):
+                            style = self.datestyle
+                        self.xls_worksheet.write(self.row, c, celldata, style)
                     except KeyError:
                         # OK for a field to be missing
                         pass
