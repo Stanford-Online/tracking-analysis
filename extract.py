@@ -8,6 +8,7 @@ import csv
 import json
 import dateutil.parser
 from xlwt import *
+from collections import OrderedDict
 
 courses_file = open("classes.yml", "r")
 courses = yaml.load(courses_file)
@@ -27,7 +28,7 @@ class Writer:
 
         if 'csv' in self.formats:
             self.csv_outfile = open(course + "-" + dataname + ".csv", "wb")
-            self.csv_writer = csv.DictWriter(self.csv_outfile, self.fieldnames, 
+            self.csv_writer = csv.DictWriter(self.csv_outfile, self.fieldnames.keys(), 
                     dialect='excel', extrasaction='ignore')
 
             def csv_header_backend():
@@ -52,20 +53,25 @@ class Writer:
             self.row = 0
 
             def xls_header_backend():
-                for c in range(len(self.fieldnames)):
-                    self.xls_worksheet.write(self.row, c, label=self.fieldnames[c])
+                c = 0
+                for field in self.fieldnames.keys():
+                    self.xls_worksheet.write(self.row, c, label=field)
+                    c += 1
                 self.row += 1
             self.header_backends.append(xls_header_backend)
 
             def xls_row_backend(data):
-                for c in range(len(self.fieldnames)):
+                c = 0;
+                for field, conversion_func in self.fieldnames.iteritems():
                     try:
-                        celldata = data[self.fieldnames[c]]
-                        if isinstance(celldata, dict):
-                            celldata = str(celldata)
+                        celldata = data[field]
+                        if conversion_func is not None:
+                            celldata = conversion_func(celldata)
                         self.xls_worksheet.write(self.row, c, label=celldata)
                     except KeyError:
+                        # OK for a field to be missing
                         pass
+                    c += 1
                 self.row += 1
             self.row_backends.append(xls_row_backend)
 
@@ -86,29 +92,37 @@ class Writer:
             back()
 
 
+def flatten_date(d):
+    return str(dateutil.parser.parse(d))
+
+def iso_date(d):
+    return dateutil.parser.parse(d)
+
 class TrackingWriter(Writer):
-    fieldnames = ["username",
-            "session",
-            "course_id",
-            "event_source",
-            "event_type",
-            "ip",
-            "agent",
-            "page",
-            "host",
-            "time",
-            "event",
-        ]
+    fieldnames = OrderedDict({
+        "username": None,
+        "session": None,
+        "course_id": None,
+        "event_source": None,
+        "event_type": None,
+        "ip": None,
+        "agent": None,
+        "page": None,
+        "host": None,
+        "time": None,
+        "event": str,
+        })
 
 class SessionWriter(Writer):
-    fieldnames = ["course_id",
-            "session",
-            "username",
-            "first_time",
-            "last_time",
-            "num_events",
-            "session_sec",
-        ]
+    fieldnames = OrderedDict({
+        "course_id": None,
+        "session": None,
+        "username": None,
+        "first_time": None,
+        "last_time": None,
+        "num_events": None,
+        "session_sec": None,
+        })
 
 
 # Collection Handlers
@@ -121,9 +135,9 @@ def tracking(db, course, commands):
     selector = {"course_id": commands['course_id']}
     curs = coll.find(selector)
     for rec in curs:
+        del rec["_id"]
         del rec["load_date"]
         del rec["load_file"]
-        # rec['time'] = str(dateutil.parser.parse(rec['time']))
         writer.write(rec)
     writer.final()
 
@@ -142,6 +156,7 @@ def session(db, course, commands):
         # flatrec['last_time'] = str(flatrec['last_time'])
         writer.write(flatrec)
     writer.final()
+
 
 # Main
 
