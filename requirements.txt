@@ -1,3 +1,6 @@
 pymongo
 readline
 ipython
+pyyaml
+python-dateutil
+xlwt
