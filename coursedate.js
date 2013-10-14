@@ -36,9 +36,10 @@ function reduce(key, values) {
 
 var session_collection = db.getCollection(session_collection_name);
 
-"INFO: map/reduce on \"" + session_collection_name + "\", " +
-                "results in \"" + coursedate_collection_name + "\"";
-session_collection.mapReduce(map,
+print("INFO: map/reduce on \"" + session_collection_name + "\", " +
+                "results in \"" + coursedate_collection_name + "\"");
+out = session_collection.mapReduce(map,
                              reduce,
                              {out: coursedate_collection_name});
+printjson(out);
 

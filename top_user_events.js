@@ -13,8 +13,8 @@ var course_id = 'Stanford/2013/Three_Books';
 var excludes = ['mtuttle', 'caesar2164', 'NicholasJenkins', 'kimhwrth','gbruhns'];
 var topN = 20;
 
-"INFO: Course: " + course_id;
-"INFO: Find " + topN + " most active users, excluding staff: " + excludes.concat();
+print("INFO: Course: " + course_id);
+print("INFO: Find " + topN + " most active users, excluding staff: " + excludes.concat());
 var top_users = db.session.aggregate([
         {$match: {'_id.course_id': course_id}}, 
         {$match: {'value.username': {$nin: excludes}}},
@@ -25,22 +25,22 @@ var top_users = db.session.aggregate([
 ]);
 var top_users_result = top_users['result'];
 var top_names = top_users_result.map(function (elem) {return elem._id;});
-"INFO: Top " + topN + " users: " + top_names.concat()
+print("INFO: Top " + topN + " users: " + top_names.concat());
 
-// Careful, building these indexes make take a looong time.
+// Careful, building these indexes make take a looong time
 
-"INFO: Ensure index on \"tracking.course_id\"";
-db.tracking.ensureIndex({'course_id':1}, {background:true})
+print("INFO: Ensure index on \"tracking.course_id\"");
+db.tracking.ensureIndex({course_id:1}, {background:true});
 
 // not strictly required
 // 
-// "INFO: Ensure index on \"tracking.username\"";
+// print("INFO: Ensure index on \"tracking.username\"");
 // db.tracking.ensureIndex({'username':1}, {background:true})
 
 // add this to exclude page views
 //      {$match: {_id: {$not: /^\/courses\/.*$/}}},
 
-"INFO: Events done by the top " + topN + " users."
+print("INFO: Events done by the top " + topN + " users.");
 var activities = db.tracking.aggregate([
         {$match: {course_id: course_id}}, 
         {$match: {username: {$in: top_names}}},

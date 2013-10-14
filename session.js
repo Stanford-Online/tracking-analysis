@@ -10,13 +10,14 @@
 
 // settings
 var log_collection_name = "tracking";
-var session_collection_name = "session";
+var log_collection = db.getCollection(log_collection_name);
+var out_collection_name = "session";
+var out_collection = db.getCollection(out_collection_name);
 
 // create index 
-var log_collection = db.getCollection(log_collection_name);
-"INFO: creating (session,time) index on \"" + log_collection_name + "\"";
+print("INFO: creating (session,time) index on \"" + log_collection_name + "\"");
 log_collection.ensureIndex({session:1,time:1}, {background:1});
-//"INFO: creating (time) index on \"" + log_collection_name + "\"";
+//print("INFO: creating (time) index on \"" + log_collection_name + "\"");
 //log_collection.ensureIndex({time:1}, {background:1});
 
 // map/reduce functions
@@ -62,13 +63,20 @@ function finalize_get_duration(key, session_events) {
             session_sec: session_sec};
 };
 
+var before = out_collection.count();
+if (before > 0) {
+    print("INFO: removing " + before + " from \"" + out_collection_name + "\"");
+    out_collection.remove();
+};
+
 // start the m/r
-"INFO: map/reduce on \"" + log_collection_name + "\", " +
-                "results in \"" + session_collection_name + "\"";
-log_collection.mapReduce(map_valid_dates, 
+print("INFO: map/reduce on \"" + log_collection_name + "\", " +
+                "results in \"" + out_collection_name + "\"");
+out = log_collection.mapReduce(map_valid_dates, 
                          reduce_sessions,
-                         {out: session_collection_name,
+                         {out: out_collection_name,
                           sort: {session:1, time:1},  /* use index */
                           finalize: finalize_get_duration
                          });
+printjson(out);
 
