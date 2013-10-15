@@ -56,9 +56,11 @@ var map = function() {
     } else {
         timeobj = new Date(this.time);
     }
+
     emit({course_id: cid, 
           event_source: this.event_source,
           username: this.username, 
+          id: this.event.id,
           event_type: this.event_type,
           date: date_only(timeobj)},
          1

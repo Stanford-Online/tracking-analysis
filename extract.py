@@ -146,6 +146,16 @@ class SessionWriter(Writer):
         "session_sec": None,
         })
 
+class CourseUserActivityWriter(Writer):
+    fieldnames = OrderedDict({
+        "course_id": None,
+        "username": None,
+        "event_source": None,
+        "event_type": None,
+        "id": None,
+        "date": None,
+        "count": None,
+        })
 
 # Collection Handlers
 
@@ -174,11 +184,22 @@ def session(db, course, commands):
         flatrec = {}
         for k,v in rec.iteritems():
             flatrec.update(v)
-        # flatrec['first_time'] = str(flatrec['first_time'])
-        # flatrec['last_time'] = str(flatrec['last_time'])
         writer.write(flatrec)
     writer.final()
 
+def course_user_activity(db, course, commands):
+    writer = CourseUserActivityWriter(course, "activity", commands['formats'])
+    writer.writeheader()
+
+    coll = db["course_user_activity"]
+    selector = {"_id.course_id": commands['course_id']}
+    curs = coll.find(selector)
+    for rec in curs:
+        flatrec = {}
+        flatrec.update(rec["_id"])
+        flatrec["count"] = rec["value"]
+        writer.write(flatrec)
+    writer.final()
 
 # Main
 
@@ -188,4 +209,5 @@ for course, commands in courses.iteritems():
     
     tracking(db, course, commands)
     session(db, course, commands)
+    course_user_activity(db, course, commands)
 
