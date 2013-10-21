@@ -31,19 +31,10 @@ log_collection.ensureIndex({load_file:1}, {background:1});
 // map/reduce functions
 var map = function() {
 
+    // if loadfile parameter is specified, then restrict only to those events
     var realValue = function(obj) {
        return obj && obj !== null && obj !== undefined;
     };
-
-    var date_only = function(datetime) {
-        if (datetime && datetime !== null && datetime !== undefined) {
-            return new Date(datetime.getFullYear(), datetime.getMonth(), datetime.getDate());
-        } else {
-            return null;
-        }
-    };
-
-    // if loadfile parameter is specified, then restrict only to those events
     if (typeof(loadfile) != 'undefined' && this.load_file !== loadfile) {
         return;
     }
@@ -51,16 +42,65 @@ var map = function() {
     if (realValue(this.course_id)) {
         cid = this.course_id;
     };
+
+    // Data Cleanup -- date
+    var date_only = function(datetime) {
+        if (datetime && datetime !== null && datetime !== undefined) {
+            return new Date(datetime.getFullYear(), datetime.getMonth(), datetime.getDate());
+        } else {
+            return null;
+        }
+    };
     if (this.time instanceof Date) {
         timeobj = this.time;
     } else {
         timeobj = new Date(this.time);
     }
 
+    // Data Cleanup -- event_type
+    var get_id_from_string = function(s) {
+        if (s !== undefined && s !== null) {
+            var id_match = s.match(/[0-9a-f]{32}/i);
+            if (Array.isArray(id_match)) {
+                return id_match[0];
+            }
+        }
+        return "";
+    }
+    var detail = "";
+    var detail_more = "";
+    var id = "";
+    if (this.event_type == "problem_graded") {
+        detail = this.event[0];
+        id = get_id_from_string(detail);
+    } else if (this.event_type == "problem_check" || this.event_type == "problem_reset") {
+        detail = this.event;
+        id = get_id_from_string(detail);
+    } else if (this.event_type.slice(0,7) == "problem") {
+        detail = this.event.problem;
+        id = get_id_from_string(detail);
+
+    } else if (this.event_type.slice(0,3) == "seq") {
+        detail = this.event.id;
+        id = get_id_from_string(detail);
+
+    } else if (this.event_type.substr(this.event_type.length-5) == "video") {
+        detail = this.event.id;
+        detail_more = this.event.code;
+        id = get_id_from_string(detail);
+
+    } else if (this.event_type[0] == "/" && this.event_source == "server") {
+        detail = this.event_type;
+        id = get_id_from_string(detail);
+        this.event_type = "page_view";
+    }
+
     emit({course_id: cid, 
           event_source: this.event_source,
           username: this.username, 
-          id: this.event.id,
+          id: id,
+          detail: detail,
+          detail_more: detail_more,
           event_type: this.event_type,
           date: date_only(timeobj)},
          1

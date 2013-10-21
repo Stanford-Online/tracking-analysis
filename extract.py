@@ -12,17 +12,21 @@ import csv
 import json
 from xlwt import *
 
-if len(sys.argv) <> 2:
+COURSES_FILENAME = "courses.yml"
+MONGO_HOST = "localhost"
+MONGO_PORT = "27017"
+
+if len(sys.argv) <> 2 or sys.argv[1] == "-h" or sys.argv[1] == "--help":
     sys.stderr.write("usage: %s dbname\n" % sys.argv[0])
     sys.exit(1)
 dbname = sys.argv[1]
 
-sys.stderr.write("Connectng to mongodb: localhost:27017\n")
-conn = pymongo.Connection("localhost", 27017)
+sys.stderr.write("Connectng to mongodb: %s:%s\n" % (MONGO_HOST, MONGO_PORT) )
+conn = pymongo.Connection(MONGO_HOST, int(MONGO_PORT))
 db = conn[dbname]
 
-sys.stderr.write("Configuration file: classes.yml\n")
-courses_file = open("classes.yml", "r")
+sys.stderr.write("Configuration file: %s\n" % COURSES_FILENAME)
+courses_file = open(COURSES_FILENAME, "r")
 courses = yaml.load(courses_file)
 
 
@@ -121,41 +125,44 @@ def iso_date(d):
     return dateutil.parser.parse(d)
 
 class TrackingWriter(Writer):
-    fieldnames = OrderedDict({
-        "username": None,
-        "session": None,
-        "course_id": None,
-        "event_source": None,
-        "event_type": None,
-        "ip": None,
-        "agent": None,
-        "page": None,
-        "host": None,
-        "time": None,
-        "event": str,
-        })
+    fieldnames = OrderedDict([
+        ("username", None),
+        ("session", None),
+        ("course_id", None),
+        ("event_source", None),
+        ("event_type", None),
+        ("ip", None),
+        ("agent", None),
+        ("page", None),
+        ("host", None),
+        ("time", None),
+        ("event", str),
+        ])
 
 class SessionWriter(Writer):
     fieldnames = OrderedDict({
-        "course_id": None,
-        "session": None,
-        "username": None,
-        "first_time": None,
-        "last_time": None,
-        "num_events": None,
-        "session_sec": None,
+        ("course_id", None),
+        ("session", None),
+        ("username", None),
+        ("first_time", None),
+        ("last_time", None),
+        ("num_events", None),
+        ("session_sec", None),
         })
 
 class CourseUserActivityWriter(Writer):
-    fieldnames = OrderedDict({
-        "course_id": None,
-        "username": None,
-        "event_source": None,
-        "event_type": None,
-        "id": None,
-        "date": None,
-        "count": None,
-        })
+    fieldnames = OrderedDict([
+        ("course_id", None),
+        ("username", None),
+        ("date", None),
+        ("event_source", None),
+        ("event_type", None),
+        ("id", None),
+        ("display_name", None),
+        ("count", None),
+        ("detail", None),
+        ("detail_more", None),
+        ])
 
 # Collection Handlers
 
@@ -198,15 +205,28 @@ def course_user_activity(db, course, commands):
         flatrec = {}
         flatrec.update(rec["_id"])
         flatrec["count"] = rec["value"]
+        flatrec["display_name"] = display_name(db, rec["_id"]["id"])
         writer.write(flatrec)
     writer.final()
 
+# Lookup 
+def display_name(db, idstr):
+    modulestore = db["modulestore"]
+    curs = modulestore.find({"_id.name": idstr}, 
+            fields={"_id": False, "metadata": True})
+    for rec in curs:
+        return rec["metadata"]["display_name"]
+
+
 # Main
+
+sys.stderr.write("ensureIndex on course_user_activity._id.course_id\n")
+coll=db["course_user_activity"]
+coll.ensure_index([("_id.course_id", pymongo.ASCENDING)], background=True)
 
 for course, commands in courses.iteritems():
     if 'course_id' not in commands:
         commands['course_id'] = course
-    
     tracking(db, course, commands)
     session(db, course, commands)
     course_user_activity(db, course, commands)
