@@ -59,11 +59,15 @@ var map = function() {
 
     // Data Cleanup -- event_type
     var get_id_from_string = function(s) {
-        if (s !== undefined && s !== null) {
-            var id_match = s.match(/[0-9a-f]{32}/i);
-            if (Array.isArray(id_match)) {
-                return id_match[0];
+        try {
+            if (s !== undefined && s !== null) {
+                var id_match = s.match(/[0-9a-f]{32}/i);
+                if (Array.isArray(id_match)) {
+                    return id_match[0];
+                }
             }
+        } catch(err) {
+            // do nothing in case of error, just don't get an event_id
         }
         return "";
     }
