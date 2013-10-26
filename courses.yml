@@ -7,22 +7,33 @@
 #        - csv
 #        - json
 #        - xls
+#
+#mse111-fall2013:
+#    course_id: Engineering/MSandE111/Introduction_to_Optimization
+#    tags: 
+#        - fall2013
+#    formats:
+#        - csv
+#        - xls
 
-mse111-fall2013:
-    course_id: Engineering/MSandE111/Introduction_to_Optimization
+#imageproc-fall2013:
+#    course_id: Engineering/EE368/Digital_Image_Processing
+#    tags: 
+#        - fall2013
+#    formats:
+#        - csv
+#        - xls
+
+mathlearning-winter2013:
+    course_id: Education/EDUC115N/How_to_Learn_Math
     tags: 
-        - fall2013
+        - winter2013
     formats:
         - csv
         - json
-        - xls
-
-imageproc-fall2013:
-    course_id: Engineering/EE368/Digital_Image_Processing
-    tags: 
-        - fall2013
-    formats:
-        - csv
-        - json
-        - xls
+      # - xls
+    content:
+        - session
+        - course_user_activity
+      # - tracking
 

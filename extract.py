@@ -32,6 +32,20 @@ courses = yaml.load(courses_file)
 
 # Writer Classes
 
+class DictUnicodeProxy(object):
+    """Handle unicode, from this StackOverflow thread:
+    http://stackoverflow.com/questions/5838605/python-dictwriter-writing-utf-8-encoded-csv-files
+    """
+    def __init__(self, d):
+        self.d = d
+    def __iter__(self):
+        return self.d.__iter__()
+    def get(self, item, default=None):
+        i = self.d.get(item, default)
+        if isinstance(i, unicode):
+            return i.encode('utf-8')
+        return i
+
 class Writer:
     def __init__(self, course, dataname, formats):
         self.formats = formats
@@ -45,15 +59,16 @@ class Writer:
         if 'csv' in self.formats:
             sys.stderr.write("csv ")
             self.csv_outfile = open(basename + ".csv", "wb")
-            self.csv_writer = csv.DictWriter(self.csv_outfile, self.fieldnames.keys(), 
-                    dialect='excel', extrasaction='ignore')
+            self.csv_writer = csv.DictWriter(self.csv_outfile, 
+                    self.fieldnames.keys(), 
+                    extrasaction='ignore')
 
             def csv_header_backend():
                 self.csv_writer.writeheader()
             self.header_backends.append(csv_header_backend)
 
             def csv_row_backend(data):
-                self.csv_writer.writerow(data)
+                self.csv_writer.writerow(DictUnicodeProxy(data))
             self.row_backends.append(csv_row_backend)
 
         if 'json' in self.formats:
@@ -167,6 +182,8 @@ class CourseUserActivityWriter(Writer):
 # Collection Handlers
 
 def tracking(db, course, commands):
+    if 'content' not in commands or 'tracking' not in commands['content']:
+        return
     writer = TrackingWriter(course, "tracking", commands['formats'])
     writer.writeheader()
 
@@ -181,6 +198,8 @@ def tracking(db, course, commands):
     writer.final()
 
 def session(db, course, commands):
+    if 'content' not in commands or 'session' not in commands['content']:
+        return
     writer = SessionWriter(course, "session", commands['formats'])
     writer.writeheader()
 
@@ -195,6 +214,8 @@ def session(db, course, commands):
     writer.final()
 
 def course_user_activity(db, course, commands):
+    if 'content' not in commands or 'course_user_activity' not in commands['content']:
+        return
     writer = CourseUserActivityWriter(course, "activity", commands['formats'])
     writer.writeheader()
 
@@ -216,7 +237,6 @@ def display_name(db, idstr):
             fields={"_id": False, "metadata": True})
     for rec in curs:
         return rec["metadata"]["display_name"]
-
 
 # Main
 
